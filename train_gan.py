@@ -14,7 +14,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
 from datasets import PartDataset
-from pointnet import PointNetCls, PointGen, PointGenC
+from pointnet import PointNetCls, PointGen
 import torch.nn.functional as F
 
 
@@ -27,6 +27,7 @@ parser.add_argument('--outf', type=str, default='gan',  help='output folder')
 parser.add_argument('--model', type=str, default = '',  help='model path')
 parser.add_argument('--num_points', type=int, default = 2500,  help='number of points')
 parser.add_argument('--dataset', type=str, required=True, help='dataset root')
+parser.add_argument('--class_choice', type=str, required=True, help='class choice')
 
 opt = parser.parse_args()
 print (opt)
@@ -38,22 +39,14 @@ print("Random Seed: ", opt.manualSeed)
 random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
 
-dataset = PartDataset(root = opt.dataset, class_choice = ['Chair'], classification = True)
+dataset = PartDataset(root = opt.dataset, class_choice = [opt.class_choice], classification = True)
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
-                                          shuffle=True, num_workers=int(opt.workers))
-
-test_dataset = PartDataset(root = opt.dataset, class_choice = ['Chair'],classification = True, train = False)
-testdataloader = torch.utils.data.DataLoader(test_dataset, batch_size=opt.batchSize,
                                           shuffle=True, num_workers=int(opt.workers))
 
 
 cudnn.benchmark = True
 
-
-print(len(dataset), len(test_dataset))
 num_classes = len(dataset.classes)
-print('classes', num_classes)
-
 
 try:
     os.makedirs(opt.outf)
@@ -68,9 +61,11 @@ gen = PointGen(num_points = opt.num_points)
 if opt.model != '':
     classifier.load_state_dict(torch.load(opt.model))
 
+print ("MODEL SUMMMARY")
 print(classifier)
 print(gen)
 
+print ("TRAINING ON CLASS: " + opt.class_choice)
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -89,7 +84,6 @@ gen.cuda()
 optimizerD = optim.Adagrad(classifier.parameters(), lr = 0.001)
 optimizerG = optim.Adagrad(gen.parameters(), lr = 0.001)
 
-
 num_batch = len(dataset)/opt.batchSize
 
 for epoch in range(opt.nepoch):
@@ -106,8 +100,6 @@ for epoch in range(opt.nepoch):
 
         pred, trans = classifier(points)
         loss1 = F.nll_loss(pred, target)
-
-
 
         sim_noise = Variable(torch.randn(bs, 100)).cuda()
         fake = gen(sim_noise)
