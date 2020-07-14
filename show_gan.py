@@ -29,24 +29,26 @@ parser.add_argument('--model', type=str, default = '',  help='model path')
 opt = parser.parse_args()
 print (opt)
 
-gen = PointGen(num_points = 2048)
+gen = PointGen(num_points = 2500)
 gen.load_state_dict(torch.load(opt.model))
 
-sim_noise = Variable(torch.randn(5, 100))
 
+base = 5
+span = 100
 
-sim_noises = Variable(torch.zeros(30 * 5,100))
+sim_noise = Variable(torch.randn(base, 100))
+sim_noises = Variable(torch.zeros(span * base,100))
 
-for j in range(5):
-    for i in range(30):
-        x = (1-i/30.0)
-        sim_noises[i + 30 * j] = sim_noise[j] * x + sim_noise[(j+1) % 5] * (1-x)
+for j in range(base):
+    for i in range(span):
+        x = (1-i/span)
+        sim_noises[i + span * j] = sim_noise[j] * x + sim_noise[(j+1) % base] * (1-x)
 
 points = gen(sim_noises)
 point_np = points.transpose(2,1).data.numpy()
 print(point_np.shape)
 
-for i in range(150):
+for i in range(base * span):
     print(i)
     frame = showpoints_frame(point_np[i])
     plt.imshow(frame)
