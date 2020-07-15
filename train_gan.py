@@ -28,6 +28,7 @@ parser.add_argument('--model', type=str, default = '',  help='model path')
 parser.add_argument('--num_points', type=int, default = 2500,  help='number of points')
 parser.add_argument('--dataset', type=str, required=True, help='dataset root')
 parser.add_argument('--class_choice', type=str, required=True, help='class choice')
+parser.add_argument('--noise_vec_size', type=int, default=100, help='size of noise vector')
 
 opt = parser.parse_args()
 print (opt)
@@ -55,7 +56,7 @@ except OSError:
 
 
 classifier = PointNetCls(k = 2, num_points = opt.num_points)
-gen = PointGen(num_points = opt.num_points)
+gen = PointGen(num_points = opt.num_points, latent_size=opt.noise_vec_size)
 
 
 if opt.model != '':
@@ -101,7 +102,7 @@ for epoch in range(opt.nepoch):
         pred, trans = classifier(points)
         loss1 = F.nll_loss(pred, target)
 
-        sim_noise = Variable(torch.randn(bs, 100)).cuda()
+        sim_noise = Variable(torch.randn(bs, 500)).cuda()
         fake = gen(sim_noise)
         fake_target = Variable(torch.from_numpy(np.zeros(bs,).astype(np.int64))).cuda()
         pred2, trans2 = classifier(fake)
@@ -117,7 +118,7 @@ for epoch in range(opt.nepoch):
 
 
         optimizerG.zero_grad()
-        sim_noise = Variable(torch.randn(bs, 100)).cuda()
+        sim_noise = Variable(torch.randn(bs, opt.noise_vec_size)).cuda()
         points = gen(sim_noise)
         pred, trans = classifier(points)
         target = Variable(torch.from_numpy(np.ones(bs,).astype(np.int64))).cuda()
@@ -126,7 +127,7 @@ for epoch in range(opt.nepoch):
         lossG.backward()
         optimizerG.step()
 
-        print('[%d: %d/%d] train lossD: %f lossG: %f' %(epoch, i, num_batch, lossD.data[0], lossG.data[0]))
+        print('[%d: %d/%d] train lossD: %f lossG: %f' %(epoch, i, num_batch, lossD.item(), lossG.item()))
 
 
     torch.save(classifier.state_dict(), '%s/modelD_%d.pth' % (opt.outf, epoch))
