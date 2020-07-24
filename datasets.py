@@ -16,13 +16,14 @@ import json
 
 
 class PartDataset(data.Dataset):
-    def __init__(self, root, npoints = 2500, classification = False, class_choice = None, train = True, parts_also = False, shape_comp = False):
+    def __init__(self, root, npoints = 2500, classification = False, canonicalize=False, class_choice = None, train = True, parts_also = False, shape_comp = False):
         self.npoints = npoints
         self.root = root
         self.catfile = os.path.join(self.root, 'synsetoffset2category.txt')
         self.cat = {}
         self.parts_also = parts_also
         self.shape_comp = shape_comp
+        self.canonicalize = canonicalize
         
         self.classification = classification
         
@@ -69,6 +70,9 @@ class PartDataset(data.Dataset):
         
         
     def __getitem__(self, index):
+
+        ind_canon = 3
+
         fn = self.datapath[index]
         cls = self.classes[self.datapath[index][0]]
         point_set = np.loadtxt(fn[1]).astype(np.float32)
@@ -90,6 +94,31 @@ class PartDataset(data.Dataset):
                 part = part - np.expand_dims(np.mean(part, axis = 0), 0)
                 part = torch.from_numpy(part)
                 parts.append(part)
+
+
+        # Load canonical shape as well
+
+        fn_canon = self.datapath[ind_canon]
+        cls_canon = self.classes[self.datapath[ind_canon][0]]
+        point_set_canon = np.loadtxt(fn_canon[1]).astype(np.float32)
+        seg_canon = np.loadtxt(fn_canon[2]).astype(np.int64)
+        #print(point_set.shape, seg.shape)
+        
+        choice_canon = np.random.choice(len(seg_canon), self.npoints, replace=True)
+        #resample
+        point_set_canon = point_set_canon[choice_canon, :]
+        seg_canon = seg_canon[choice_canon]
+        parts_canon = []
+        if self.parts_also:
+            for j in np.unique(seg_canon):
+            
+                parts_canon = point_set_canon[seg_canon == j]
+                choice2_canon = np.random.choice(parts_canon.shape[0], self.npoints/4, replace=True)
+                parts_canon = parts_canon[choice2_canon, :]
+                #print(part.shape)
+                parts_canon = parts_canon - np.expand_dims(np.mean(parts_canon, axis = 0), 0)
+                parts_canon = torch.from_numpy(parts_canon)
+                parts_canon.append(parts_canon)
         
         
         if self.shape_comp:
@@ -115,15 +144,35 @@ class PartDataset(data.Dataset):
         point_set = torch.from_numpy(point_set)
         seg = torch.from_numpy(seg)
         cls = torch.from_numpy(np.array([cls]).astype(np.int64))
+
+
+
+        # Load canonical shape too
+
+        point_set_canon = point_set_canon - np.expand_dims(np.mean(point_set_canon, axis = 0), 0)
+        dist_canon = np.max(np.sqrt(np.sum(point_set_canon ** 2, axis = 1)),0)
+        dist_canon = np.expand_dims(np.expand_dims(dist_canon, 0), 1)
+        
+        if not self.parts_also:
+            point_set_canon = point_set_canon/dist_canon
+            
+        point_set_canon = torch.from_numpy(point_set_canon)
+        seg_canon = torch.from_numpy(seg_canon)
+        cls_canon = torch.from_numpy(np.array([cls_canon]).astype(np.int64))
+
+
         
         if self.shape_comp:
             return point_set, incomp
         elif self.parts_also:
             return point_set, parts
         
-        elif self.classification:
+        elif self.canonicalize:
+            return point_set_canon, point_set, cls
 
+        elif self.classification:
             return point_set, cls
+        
         else:
             return point_set, seg
         
