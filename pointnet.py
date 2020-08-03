@@ -519,17 +519,43 @@ class PointGenPSG(nn.Module):
 
         return torch.cat([x1, x2], 2)
 
-if __name__ == '__main__':
-    sim_data = Variable(torch.rand(32,3,2500))
-    trans = STN3d()
-    out = trans(sim_data)
-    print('stn', out.size())
+class DeformNet(nn.Module):
+    def __init__(self, num_points=2500):
+        super(DeformNet, self).__init__()
 
-    pointfeat = PointNetfeat(global_feat=True)
+        self.feat = PointNetfeat(global_feat=False, num_points=num_points)
+        self.num_points = num_points
+
+        self.conv = nn.Conv1d(1088, 3, 1) # Input is pointwise features
+
+    def forward(self, x):
+        x_original = x
+
+        feat = self.feat(x)[0]
+
+        translation = self.conv(feat)
+
+        deformed = x_original + translation
+
+        return deformed
+
+if __name__ == '__main__':
+    sim_data = Variable(torch.rand(1,3,500))
+    #trans = STN3d()
+    #out = trans(sim_data)
+    #print('stn', out.size())
+
+    dfNet = DeformNet(num_points=500)
+
+    dfNet(sim_data)
+
+    exit()
+
+    pointfeat = PointNetfeat(global_feat=True, num_points=500)
     out, _ = pointfeat(sim_data)
     print('global feat', out.size())
 
-    pointfeat = PointNetfeat(global_feat=False)
+    pointfeat = PointNetfeat(global_feat=False, num_points=500)
     out, _ = pointfeat(sim_data)
     print('point feat', out.size())
 
