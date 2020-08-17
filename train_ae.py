@@ -135,6 +135,8 @@ for epoch in range(1, opt.nepoch):
         optimizer.zero_grad()
         points, _ = data
 
+
+        # Apply random rotation to batch
         if opt.no_rot:
             rot = np.eye(3)
         
@@ -149,20 +151,22 @@ for epoch in range(1, opt.nepoch):
 
         points = Variable(torch.Tensor(points_r)).cuda()
 
+        # Downsample points
         #choice = np.random.choice(4096, 4096, replace=True)
         #down = points[:, choice, :]
 
+        # Send points to GPU and reshape tensor
         down = points.cuda()
         down = down.transpose(2,1)
 
         bs = points.size()[0]
 
+        # Generate points from AE, using downsampled pointcloud as input
         gen = ae(down)
         
+        # Reshape back to (N, 3) for loss and visualization
         gen = gen.transpose(2,1).contiguous()
         down = down.transpose(2,1).contiguous()
-        
-        #print(gen.size(), points.size(), dist1.size())
 
         loss = criterion(gen, points)[0]
 

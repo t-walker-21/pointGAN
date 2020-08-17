@@ -136,12 +136,13 @@ num_batch = len(dataset)/opt.batchSize
 for epoch in range(1, opt.nepoch):
     for i, data in enumerate(dataloader, 0):
         optimizer.zero_grad()
+        # Dataloader returns (point_canonical, points_rand_instance, _)
         points_canon, points, _ = data
 
         # Debug copy
         #points_canon = points
 
-        # Acquire rotation        
+        # Apply random rotation to batch       
         if opt.no_rot:
             rot = np.eye(3)
         
@@ -151,15 +152,18 @@ for epoch in range(1, opt.nepoch):
         rot_tensor = torch.Tensor(rot).view(1, 9)
         rot_tensor = rot_tensor.repeat(1, points.shape[0]).view(points.shape[0], 3, 3)
 
+        # Apply rotation to both instance cloud and canonical cloud
         points_r = torch.bmm(points, rot_tensor)
         points_canon_r = torch.bmm(points_canon, rot_tensor)
 
+        # Make these pointclouds as tensors
         points = Variable(torch.Tensor(points_r))
         points_canon = Variable(torch.Tensor(points_canon_r))
 
         choice = np.random.choice(4096, 4096, replace=True)
         down = points[:, choice, :]
 
+        # Send tensors to GPU and reshape
         down = down.cuda()
         down = down.transpose(2,1)
 
@@ -168,6 +172,7 @@ for epoch in range(1, opt.nepoch):
         points_canon = points_canon.transpose(2,1)
         points_canon = points_canon.cuda()
         
+        # Generate canonicalized pointcloud from downsampled pointcloud
         gen = ae(down)
         
         points_canon = points_canon.transpose(2,1).contiguous()

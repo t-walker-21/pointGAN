@@ -136,12 +136,16 @@ num_batch = len(dataset)/opt.batchSize
 for epoch in range(1, opt.nepoch):
     for i, data in enumerate(dataloader, 0):
         optimizer.zero_grad()
+
+        # Dataloader returns (point_canonical, points_rand_instance, _)
         points_canon, points, _ = data
 
-
-        # Generate rotation matrix
-        #rot = rand_rotation_matrix()
-        rot = np.eye(3)
+        # Apply random rotation to batch
+        if opt.no_rot:
+            rot = np.eye(3)
+        
+        else:
+            rot = rand_rotation_matrix()
 
         # Make rotation matrix into tensor and repeat for each point
         rot_tensor = torch.Tensor(rot).view(1, 9)
@@ -156,8 +160,8 @@ for epoch in range(1, opt.nepoch):
         points_canon = Variable(torch.Tensor(points_canon_r))
 
         # Sub sample point cloud to train network on unseen points
-        choice = np.random.choice(4096, 4096, replace=True)
-        down = points[:, choice, :]
+        #choice = np.random.choice(4096, 4096, replace=True)
+        #down = points[:, choice, :]
 
         down = points.cuda()
         down = down.transpose(2,1)
@@ -170,6 +174,7 @@ for epoch in range(1, opt.nepoch):
         points_canon = points_canon.transpose(2,1)
         points_canon = points_canon.cuda()
         
+        # Infer per-point translation from down sampled points
         translation = ae(down)
 
         #translation = torch.zeros_like(translation)
