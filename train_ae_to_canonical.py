@@ -24,7 +24,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--batchSize', type=int, default=32, help='input batch size')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=4)
 parser.add_argument('--nepoch', type=int, default=50, help='number of epochs to train for')
-parser.add_argument('--outf', type=str, default='ae',  help='output folder')
+parser.add_argument('--outf', type=str, default='ae_canon',  help='output folder')
 parser.add_argument('--model', type=str, default = '',  help='model path')
 parser.add_argument('--num_points', type=int, default = 4096,  help='number of points')
 parser.add_argument('--dataset', type=str, required=True, help='dataset root')
@@ -37,6 +37,7 @@ parser.add_argument('--no_rot', action='store_true', help='no rotation on points
 
 opt = parser.parse_args()
 print (opt)
+
 
 def rand_rotation_matrix(deflection=1.0, randnums=None):
     """
@@ -87,14 +88,17 @@ print("Random Seed: ", opt.manualSeed)
 random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
 
-dataset = PartDataset(root = opt.dataset, class_choice = [opt.class_choice], classification = True, npoints = opt.num_points, train=not opt.test)
+dataset = PartDataset(root = opt.dataset, class_choice = [opt.class_choice], canonicalize=True, npoints = opt.num_points, train=not opt.test)
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
                                           shuffle=True, num_workers=int(opt.workers))
 
 opt.outf += "_" + opt.class_choice
 
+cudnn.benchmark = True
+
 num_classes = len(dataset.classes)
 print('classes', num_classes)
+
 
 try:
     os.makedirs(opt.outf)
@@ -104,12 +108,12 @@ except OSError:
 
 ae = PointNetAE(num_points = opt.num_points, latent_size=opt.latent_size)
 
+
 if opt.model != '':
     print ("loading pretrained model")
     ae.load_state_dict(torch.load(opt.model))
 
-print("Output directory:")
-print (opt.outf)
+print(ae)
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -131,10 +135,13 @@ num_batch = len(dataset)/opt.batchSize
 
 for epoch in range(1, opt.nepoch):
     for i, data in enumerate(dataloader, 0):
-
         optimizer.zero_grad()
-        points, _ = data
+        points_canon, points, _ = data
 
+        # Debug copy
+        #points_canon = points
+
+        # Acquire rotation        
         if opt.no_rot:
             rot = np.eye(3)
         
@@ -143,31 +150,37 @@ for epoch in range(1, opt.nepoch):
         
         rot_tensor = torch.Tensor(rot).view(1, 9)
         rot_tensor = rot_tensor.repeat(1, points.shape[0]).view(points.shape[0], 3, 3)
-        #print (rot_tensor)
 
         points_r = torch.bmm(points, rot_tensor)
+        points_canon_r = torch.bmm(points_canon, rot_tensor)
 
-        points = Variable(torch.Tensor(points_r)).cuda()
+        points = Variable(torch.Tensor(points_r))
+        points_canon = Variable(torch.Tensor(points_canon_r))
 
-        #choice = np.random.choice(4096, 4096, replace=True)
-        #down = points[:, choice, :]
+        choice = np.random.choice(4096, 4096, replace=True)
+        down = points[:, choice, :]
 
-        down = points.cuda()
+        down = down.cuda()
         down = down.transpose(2,1)
 
         bs = points.size()[0]
 
+        points_canon = points_canon.transpose(2,1)
+        points_canon = points_canon.cuda()
+        
         gen = ae(down)
         
+        points_canon = points_canon.transpose(2,1).contiguous()
         gen = gen.transpose(2,1).contiguous()
         down = down.transpose(2,1).contiguous()
         
         #print(gen.size(), points.size(), dist1.size())
-
-        loss = criterion(gen, points)[0]
+        
+        loss = criterion(gen, points_canon)[0]
 
         loss.backward()
         optimizer.step()
+        
         
         print('[%d: %d/%d] train loss %f' %(epoch, i, num_batch, loss.item()))
 
@@ -176,6 +189,12 @@ for epoch in range(1, opt.nepoch):
             down_sampeled = down[0].detach().cpu().numpy()
             pcd = o3d.geometry.PointCloud()
             vec = o3d.utility.Vector3dVector(down_sampeled)
+            pcd.points = vec
+            o3d.visualization.draw_geometries([pcd])
+
+            target = points_canon[0].detach().cpu().numpy()
+            pcd = o3d.geometry.PointCloud()
+            vec = o3d.utility.Vector3dVector(target)
             pcd.points = vec
             o3d.visualization.draw_geometries([pcd])
 
