@@ -598,7 +598,7 @@ class DeformNet(nn.Module):
 
         x = F.relu(self.conv1(feat))
         x = F.relu(self.conv2(x))
-        translation = torch.tanh(self.conv3(x)) * 5
+        translation = torch.tanh(self.conv3(x)) * 10
 
         translation = translation.transpose(2, 1).contiguous()
 
