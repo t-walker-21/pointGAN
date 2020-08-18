@@ -57,12 +57,11 @@ class PartDataset(data.Dataset):
         for item in self.cat:
             for fn in self.meta[item]:
                 self.datapath.append((item, fn[0], fn[1]))
-            
-         
+
         self.classes = dict(zip(self.cat, range(len(self.cat))))  
         self.num_seg_classes = 0
         if not self.classification:
-            for i in range(len(self.datapath)/50):
+            for i in range(len(self.datapath)//50):
                 l = len(np.unique(np.loadtxt(self.datapath[i][-1]).astype(np.uint8)))
                 if l > self.num_seg_classes:
                     self.num_seg_classes = l
