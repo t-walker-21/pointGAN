@@ -19,6 +19,8 @@ import torch.nn.functional as F
 from pytorch3d.loss.chamfer import chamfer_distance as criterion
 import open3d as o3d
 import sys
+from tensorboardX import SummaryWriter
+import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batchSize', type=int, default=32, help='input batch size')
@@ -37,6 +39,7 @@ parser.add_argument('--no_rot', action='store_true', help='no rotation on points
 
 opt = parser.parse_args()
 print (opt)
+
 
 def rand_rotation_matrix(deflection=1.0, randnums=None):
     """
@@ -93,6 +96,9 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
 
 opt.outf += "_" + opt.class_choice
 
+# Create summary logger
+writer = SummaryWriter("runs/" + opt.outf + "_" + str(time.time()))
+
 num_classes = len(dataset.classes)
 print('classes', num_classes)
 
@@ -128,6 +134,8 @@ ae.cuda()
 optimizer = optim.Adam(ae.parameters(), lr = 0.0001)
 
 num_batch = len(dataset)/opt.batchSize
+
+n_iter = 0
 
 for epoch in range(1, opt.nepoch):
     for i, data in enumerate(dataloader, 0):
@@ -169,9 +177,13 @@ for epoch in range(1, opt.nepoch):
         down = down.transpose(2,1).contiguous()
 
         loss = criterion(gen, points)[0]
-
         loss.backward()
         optimizer.step()
+
+        # Log loss
+        writer.add_scalar('Losses/chamfer_loss', loss.item(), n_iter)
+
+        n_iter += 1
         
         print('[%d: %d/%d] train loss %f' %(epoch, i, num_batch, loss.item()))
 

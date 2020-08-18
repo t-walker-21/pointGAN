@@ -19,6 +19,8 @@ import torch.nn.functional as F
 from pytorch3d.loss.chamfer import chamfer_distance as criterion
 import open3d as o3d
 import sys
+from tensorboardX import SummaryWriter
+import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batchSize', type=int, default=32, help='input batch size')
@@ -33,6 +35,7 @@ parser.add_argument('--class_choice', type=str, required=True, help='class choic
 parser.add_argument('--dont_save_model', action='store_true', help='save model progress')
 parser.add_argument('--test', action='store_true', help='use test set')
 parser.add_argument('--viz', action='store_true', help='visualization')
+parser.add_argument('--no_rot', action='store_true', help='no rotation on points', default=False)
 
 opt = parser.parse_args()
 print (opt)
@@ -93,6 +96,9 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
 
 opt.outf += "_" + opt.class_choice
 
+# Create summary logger
+writer = SummaryWriter("runs/" + opt.outf + "_" + str(time.time()))
+
 cudnn.benchmark = True
 
 num_classes = len(dataset.classes)
@@ -132,6 +138,8 @@ ae.cuda()
 optimizer = optim.Adam(ae.parameters(), lr = 0.0001)
 
 num_batch = len(dataset)/opt.batchSize
+
+n_iter = 0
 
 for epoch in range(1, opt.nepoch):
     for i, data in enumerate(dataloader, 0):
@@ -190,6 +198,11 @@ for epoch in range(1, opt.nepoch):
         #print(gen.size(), points.size(), dist1.size())
         
         loss = criterion(gen, points_canon)[0]
+
+        # Log loss
+        writer.add_scalar('Losses/chamfer_loss', loss.item(), n_iter)
+
+        n_iter += 1
 
         loss.backward()
         optimizer.step()
