@@ -1,3 +1,8 @@
+"""
+This script implements a deformation network that regresses per point offsets from instance to canonical
+
+"""
+
 from __future__ import print_function
 import argparse
 import os

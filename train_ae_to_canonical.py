@@ -1,3 +1,8 @@
+"""
+This script implements an autoencoder that reconstructs instance to canonical pointclouds
+
+"""
+
 from __future__ import print_function
 import argparse
 import os
