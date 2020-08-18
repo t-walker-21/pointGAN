@@ -30,5 +30,5 @@ python show_gan.py --model gan/modelG_10.pth # choose your own model
  To run canonicalization, run
 
  ```
-python train_xx.py --dataset --path --class_choice yy # xx can be ae, ae_to_canonical, deform. yy is shapenet class. e.g. Airplane, Chair
+python train_xx.py --dataset path_to_shapenet --class_choice yy # xx can be ae, ae_to_canonical, deform. yy is shapenet class. e.g. Airplane, Chair
 ```
